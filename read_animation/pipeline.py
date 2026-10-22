@@ -16,7 +16,7 @@ import time
 from .cache import DescriptionCache
 from .config import FramesSection, ReadAnimationConfig
 from .frames import AnimationMeta, AnimationReadError, AnimationReader
-from .sheet import build_frame_sheet
+from .sheet import build_frame_sheet, fit_frame_edge
 from .sniff import AnimationKind, detect_animation_kind
 from .vlm import (
     PROMPT_VERSION,
@@ -51,6 +51,7 @@ class AnimationAnalysis:
     sheet_bytes: bytes
     sheet_media_type: str
     sampled_count: int
+    frame_edge: int = 0
     skip_reason: str = ""
 
 
@@ -108,10 +109,18 @@ def analyze_animation(
         if not samples:
             raise NotAnimatedError("未能抽取到有效帧")
 
+        frame_edge = fit_frame_edge(
+            width=meta.width,
+            height=meta.height,
+            frame_count=len(samples),
+            columns=int(frames_config.columns),
+            max_edge=int(frames_config.max_edge),
+            max_sheet_pixels=int(frames_config.max_sheet_pixels),
+        )
         sheet_bytes, sheet_media_type = build_frame_sheet(
             reader,
             samples,
-            max_edge=int(frames_config.max_edge),
+            max_edge=frame_edge,
             columns=int(frames_config.columns),
             background=str(frames_config.background),
         )
@@ -120,6 +129,7 @@ def analyze_animation(
             sheet_bytes=sheet_bytes,
             sheet_media_type=sheet_media_type,
             sampled_count=len(samples),
+            frame_edge=frame_edge,
         )
     finally:
         reader.close()
@@ -365,6 +375,8 @@ class AnimationProcessor:
             self._logger.warning("解析动图时出现异常，已跳过", exc_info=True)
             return None
 
+        analyzed_at = time.monotonic()
+
         header = self._build_header(analysis.meta)
         if analysis.skip_reason:
             skip_text = SKIP_REASON_TEXT.get(analysis.skip_reason, "未做视觉识别")
@@ -376,19 +388,32 @@ class AnimationProcessor:
 
         budget["remaining"] -= 1
         description = await self._describe(analysis, header, deadline)
-        elapsed_ms = (time.monotonic() - started_at) * 1000.0
+        finished_at = time.monotonic()
+        elapsed_ms = (finished_at - started_at) * 1000.0
+        analysis_ms = (analyzed_at - started_at) * 1000.0
+        vlm_ms = (finished_at - analyzed_at) * 1000.0
         if description is None:
-            self._logger.info("动图识别失败，降级为元信息: %s %.0fms", kind, elapsed_ms)
+            self._logger.info(
+                "动图识别失败，降级为元信息: %s %.0fms（解析 %.0fms / 视觉 %.0fms）",
+                kind,
+                elapsed_ms,
+                analysis_ms,
+                vlm_ms,
+            )
             return self._format_text(header, "", note="视觉描述不可用")
 
         await self._store_cached(cache_key, header=header, description=description, kind=kind)
         self._logger.info(
-            "动图识别完成: %s %sx%s %s帧 %.0fms",
+            "动图识别完成: %s %sx%s %s帧 %.0fms（解析 %.0fms / 视觉 %.0fms，帧板 %s列@%spx）",
             kind,
             analysis.meta.width,
             analysis.meta.height,
             analysis.meta.frame_count,
             elapsed_ms,
+            analysis_ms,
+            vlm_ms,
+            cfg.frames.columns,
+            analysis.frame_edge,
         )
         return self._format_text(header, description)
 
@@ -496,6 +521,7 @@ class AnimationProcessor:
                 str(cfg.vlm.max_chars),
                 str(cfg.frames.max_frames),
                 str(cfg.frames.max_edge),
+                str(cfg.frames.max_sheet_pixels),
                 str(cfg.frames.background),
             ]
         )

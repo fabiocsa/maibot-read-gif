@@ -92,8 +92,9 @@ class PluginContractTests(unittest.TestCase):
         self.assertEqual(hook_components[0]["metadata"]["hook"], "chat.receive.before_process")
 
         default_config = instance.build_default_config()
-        self.assertEqual(default_config["plugin"]["config_version"], "1.1.0")
+        self.assertEqual(default_config["plugin"]["config_version"], "1.2.0")
         self.assertGreaterEqual(default_config["vlm"]["max_tokens"], 2048)
+        self.assertGreaterEqual(default_config["frames"]["max_sheet_pixels"], 100000)
         self.assertIn("trigger", default_config)
         self.assertIn("vlm", default_config)
 

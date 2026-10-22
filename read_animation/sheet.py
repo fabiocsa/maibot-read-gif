@@ -17,6 +17,64 @@ SHEET_BANNER_HEIGHT = 26
 SHEET_JPEG_QUALITY = 88
 TEXT_COLOR = (32, 32, 32)
 BANNER_COLOR = (16, 16, 16)
+MIN_FRAME_EDGE = 128
+"""压缩帧板时允许的最小单帧长边。"""
+ESTIMATED_LABEL_WIDTH = 150
+"""帧号标签的估算宽度（默认位图字体，用于预算帧板尺寸）。"""
+
+
+def fit_frame_edge(
+    *,
+    width: int,
+    height: int,
+    frame_count: int,
+    columns: int,
+    max_edge: int,
+    max_sheet_pixels: int,
+) -> int:
+    """按帧板像素预算计算实际使用的单帧长边。
+
+    视觉模型的输入开销主要跟帧板尺寸相关；大图 + 多帧会显著拖慢识别。
+    当估算帧板像素超过 ``max_sheet_pixels`` 时按面积比例缩小单帧长边。
+
+    Args:
+        width: 原动图宽度。
+        height: 原动图高度。
+        frame_count: 采样帧数。
+        columns: 帧板列数。
+        max_edge: 配置的单帧长边上限。
+        max_sheet_pixels: 帧板总像素预算。
+
+    Returns:
+        int: 实际使用的单帧长边（不小于 ``MIN_FRAME_EDGE``）。
+    """
+
+    edge = max(MIN_FRAME_EDGE, int(max_edge))
+    budget = max(1, int(max_sheet_pixels))
+    source_width = max(1, int(width))
+    source_height = max(1, int(height))
+    column_count = max(1, min(int(columns), max(1, int(frame_count))))
+    row_count = math.ceil(max(1, int(frame_count)) / column_count)
+
+    for _ in range(8):
+        scale = min(1.0, edge / max(source_width, source_height))
+        tile_width = max(1, int(round(source_width * scale)))
+        tile_height = max(1, int(round(source_height * scale)))
+        cell_width = max(tile_width, ESTIMATED_LABEL_WIDTH)
+        sheet_width = column_count * (cell_width + 2 * SHEET_PADDING)
+        sheet_height = SHEET_BANNER_HEIGHT + row_count * (tile_height + SHEET_LABEL_HEIGHT + 2 * SHEET_PADDING)
+        sheet_pixels = sheet_width * sheet_height
+        if sheet_pixels <= budget:
+            break
+        shrink = math.sqrt(budget / sheet_pixels)
+        next_edge = max(MIN_FRAME_EDGE, int(edge * shrink))
+        if next_edge >= edge:
+            next_edge = max(MIN_FRAME_EDGE, edge - 1)
+        edge = next_edge
+        if edge <= MIN_FRAME_EDGE:
+            break
+
+    return edge
 
 
 def build_frame_sheet(

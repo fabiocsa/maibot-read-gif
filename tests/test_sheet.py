@@ -9,9 +9,47 @@ from PIL import Image, ImageDraw
 import unittest
 
 from read_animation.frames import AnimationReader
-from read_animation.sheet import build_frame_sheet, build_sheet_banner
+from read_animation.sheet import build_frame_sheet, build_sheet_banner, fit_frame_edge
 
 from tests.image_fixtures import make_animated_gif
+
+
+class FitFrameEdgeTests(unittest.TestCase):
+    """验证帧板像素预算会按需缩小单帧尺寸。"""
+
+    def test_large_sheet_shrinks_edge_within_budget(self) -> None:
+        edge = fit_frame_edge(
+            width=854,
+            height=640,
+            frame_count=8,
+            columns=4,
+            max_edge=512,
+            max_sheet_pixels=400_000,
+        )
+        self.assertLess(edge, 512)
+        self.assertGreaterEqual(edge, 128)
+
+    def test_small_sheet_keeps_configured_edge(self) -> None:
+        edge = fit_frame_edge(
+            width=64,
+            height=48,
+            frame_count=8,
+            columns=4,
+            max_edge=512,
+            max_sheet_pixels=1_100_000,
+        )
+        self.assertEqual(edge, 512)
+
+    def test_edge_never_below_minimum(self) -> None:
+        edge = fit_frame_edge(
+            width=8000,
+            height=6000,
+            frame_count=16,
+            columns=4,
+            max_edge=512,
+            max_sheet_pixels=100_000,
+        )
+        self.assertEqual(edge, 128)
 
 
 class FrameSheetTests(unittest.TestCase):

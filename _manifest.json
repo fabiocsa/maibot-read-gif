@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "id": "github.fabiocsa.read-animation",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "动图帧识别（Read Animation）",
   "description": "检测聊天里的 GIF/WebP/APNG，抽取多帧拼成带时间标注的帧板，调用宿主视觉模型生成动图描述并注入消息，让麦麦真正看懂动图。",
   "author": {

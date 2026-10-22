@@ -22,7 +22,7 @@ class PluginSection(PluginConfigBase):
         json_schema_extra={"label": "启用插件"},
     )
     config_version: str = Field(
-        default="1.1.0",
+        default="1.2.0",
         description="配置版本号；修改配置结构时递增，Runner 会据此迁移配置。",
         json_schema_extra={"label": "配置版本"},
     )
@@ -109,6 +109,16 @@ class FramesSection(PluginConfigBase):
         le=600000,
         description="动图总时长超过该毫秒数时不做视觉识别，只注入元信息。",
         json_schema_extra={"label": "最大动图时长(ms)"},
+    )
+    max_sheet_pixels: int = Field(
+        default=1100000,
+        ge=100000,
+        le=8000000,
+        description=(
+            "帧板总像素预算。原图较大时会自动缩小单帧尺寸，降低视觉模型的输入开销和延迟；"
+            "调大更清晰但更慢更贵。"
+        ),
+        json_schema_extra={"label": "帧板像素预算"},
     )
 
 
