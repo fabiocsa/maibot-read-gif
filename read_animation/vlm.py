@@ -17,6 +17,25 @@ class VlmDescriptionError(RuntimeError):
     """视觉模型没有返回可用描述。"""
 
 
+class VlmEmptyResponseError(VlmDescriptionError):
+    """视觉模型调用成功但正文为空。
+
+    思考模型（如 ``deepseek-flash-think``）会把思考内容计入 ``max_tokens``；
+    额度太小时思考过程可能吃满额度，导致最终正文为空。上层可在这种情况下提高额度重试。
+    """
+
+    def __init__(self, message: str, *, reasoning_chars: int = 0) -> None:
+        """初始化空正文错误。
+
+        Args:
+            message: 错误描述。
+            reasoning_chars: 本次响应中 reasoning 文本的字符数，便于排查额度问题。
+        """
+
+        super().__init__(message)
+        self.reasoning_chars = reasoning_chars
+
+
 async def describe_frame_sheet(
     llm_generate: LlmGenerate,
     *,
@@ -82,7 +101,11 @@ async def describe_frame_sheet(
 
     description = str(result.get("response") or "").strip()
     if not description:
-        raise VlmDescriptionError("视觉模型返回空描述")
+        reasoning = str(result.get("reasoning") or "")
+        raise VlmEmptyResponseError(
+            f"视觉模型返回空描述（reasoning {len(reasoning)} 字符，可能是思考内容占满了 max_tokens={max_tokens}）",
+            reasoning_chars=len(reasoning),
+        )
     if len(description) > max_chars:
         description = description[:max_chars]
     return description
@@ -120,7 +143,8 @@ def build_frame_sheet_prompt(
         f"共从 {total_frames} 帧中抽取了 {sampled_count} 帧，按左上到右下排列；"
         "每帧下方标注了帧序号、起始时间和持续时长。"
         "注意：相邻采样帧之间还有未展示的画面，帧与帧之间的运动不可见，不要臆造细节。"
-        f"请用中文纯文本输出一段话，不要分点、不要描述帧板排版，最多 {max_chars} 字，包含："
+        f"请用中文纯文本输出一段话，不要输出分析或思考过程，不要分点、不要描述帧板排版，"
+        f"不要以“画面：”等前缀开头，最多 {max_chars} 字，包含："
         "1) 画面主体与场景；2) 从首帧到末帧发生的变化或动作；3) 画面中的文字或梗（如无可省略）；"
         "4) 整体情绪或用途。"
     )

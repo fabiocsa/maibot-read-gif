@@ -18,13 +18,21 @@ from .config import FramesSection, ReadAnimationConfig
 from .frames import AnimationMeta, AnimationReadError, AnimationReader
 from .sheet import build_frame_sheet
 from .sniff import AnimationKind, detect_animation_kind
-from .vlm import PROMPT_VERSION, LlmGenerate, VlmDescriptionError, describe_frame_sheet
+from .vlm import (
+    PROMPT_VERSION,
+    LlmGenerate,
+    VlmDescriptionError,
+    VlmEmptyResponseError,
+    describe_frame_sheet,
+)
 
 HANDLED_COMPONENT_TYPES = frozenset({"image", "emoji"})
 MAX_FORWARD_DEPTH = 3
 MESSAGE_BUDGET_SECONDS = 40.0
 CACHE_FILE_NAME = "description_cache.json"
 CAVEAT_TEXT = "（基于等间隔采样帧生成，帧间细节可能有遗漏）"
+EMPTY_RESPONSE_RETRY_MIN_TOKENS = 2048
+EMPTY_RESPONSE_RETRY_MAX_TOKENS = 8192
 SKIP_REASON_TEXT = {
     "too_many_frames": "帧数超出解析上限，未做视觉识别",
     "too_long": "动图时长超出上限，未做视觉识别",
@@ -390,14 +398,69 @@ class AnimationProcessor:
         header: str,
         deadline: float,
     ) -> str | None:
-        """在超时与并发限制内调用视觉模型。"""
+        """在超时与并发限制内调用视觉模型。
 
+        思考模型（如 deepseek-flash-think）会把思考内容计入 ``max_tokens``；
+        当正文为空时自动提高额度重试一次，避免直接降级成"视觉描述不可用"。
+        """
+
+        cfg = self._config
         remaining_seconds = deadline - time.monotonic()
         if remaining_seconds <= 1.0:
             return None
 
-        cfg = self._config
         timeout_seconds = min(cfg.vlm.timeout_ms / 1000.0, remaining_seconds)
+        max_tokens = max(64, int(cfg.vlm.max_tokens))
+
+        try:
+            return await self._run_vlm(analysis, header, max_tokens, timeout_seconds)
+        except VlmEmptyResponseError as exc:
+            retry_tokens = min(
+                max(max_tokens * 4, EMPTY_RESPONSE_RETRY_MIN_TOKENS),
+                EMPTY_RESPONSE_RETRY_MAX_TOKENS,
+            )
+            retry_seconds = min(timeout_seconds, deadline - time.monotonic())
+            if retry_tokens <= max_tokens or retry_seconds <= 3.0:
+                self._logger.warning("动图视觉描述为空且无法重试: %s", exc)
+                return None
+
+            self._logger.warning(
+                "动图视觉描述为空（%s），将 max_tokens %s → %s 重试一次",
+                exc,
+                max_tokens,
+                retry_tokens,
+            )
+            try:
+                return await self._run_vlm(analysis, header, retry_tokens, retry_seconds)
+            except asyncio.TimeoutError:
+                self._logger.warning("动图视觉描述重试超时: %.1fs", retry_seconds)
+                return None
+            except VlmDescriptionError as retry_exc:
+                self._logger.warning("动图视觉描述重试失败: %s", retry_exc)
+                return None
+            except Exception:
+                self._logger.warning("动图视觉描述重试异常", exc_info=True)
+                return None
+        except asyncio.TimeoutError:
+            self._logger.warning("动图视觉描述超时: %.1fs", timeout_seconds)
+            return None
+        except VlmDescriptionError as exc:
+            self._logger.warning("动图视觉描述失败: %s", exc)
+            return None
+        except Exception:
+            self._logger.warning("动图视觉描述异常", exc_info=True)
+            return None
+
+    async def _run_vlm(
+        self,
+        analysis: AnimationAnalysis,
+        header: str,
+        max_tokens: int,
+        timeout_seconds: float,
+    ) -> str:
+        """执行一次视觉模型调用，返回非空描述或抛出对应异常。"""
+
+        cfg = self._config
 
         async def call_with_semaphore() -> str:
             async with self._semaphore:
@@ -411,24 +474,15 @@ class AnimationProcessor:
                     task_name=cfg.vlm.task_name.strip(),
                     model_name=cfg.vlm.model_name.strip(),
                     temperature=float(cfg.vlm.temperature),
-                    max_tokens=int(cfg.vlm.max_tokens),
+                    max_tokens=max_tokens,
                     max_chars=int(cfg.vlm.max_chars),
                 )
 
-        try:
-            description = await asyncio.wait_for(call_with_semaphore(), timeout=timeout_seconds)
-        except asyncio.TimeoutError:
-            self._logger.warning("动图视觉描述超时: %.1fs", timeout_seconds)
-            return None
-        except VlmDescriptionError as exc:
-            self._logger.warning("动图视觉描述失败: %s", exc)
-            return None
-        except Exception:
-            self._logger.warning("动图视觉描述异常", exc_info=True)
-            return None
-
+        description = await asyncio.wait_for(call_with_semaphore(), timeout=timeout_seconds)
         normalized = description.strip()
-        return normalized or None
+        if not normalized:
+            raise VlmEmptyResponseError("视觉模型返回空描述")
+        return normalized
 
     def _cache_key(self, data: bytes) -> str:
         """计算“内容 + 影响描述结果的配置”缓存键。"""

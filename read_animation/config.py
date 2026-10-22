@@ -22,7 +22,7 @@ class PluginSection(PluginConfigBase):
         json_schema_extra={"label": "启用插件"},
     )
     config_version: str = Field(
-        default="1.0.0",
+        default="1.1.0",
         description="配置版本号；修改配置结构时递增，Runner 会据此迁移配置。",
         json_schema_extra={"label": "配置版本"},
     )
@@ -136,14 +136,17 @@ class VlmSection(PluginConfigBase):
         json_schema_extra={"label": "温度"},
     )
     max_tokens: int = Field(
-        default=512,
+        default=4096,
         ge=64,
-        le=4096,
-        description="视觉模型最大输出 token 数。",
+        le=8192,
+        description=(
+            "视觉模型最大输出 token 数。若 vlm 任务是思考模型（如 deepseek-flash-think），"
+            "思考内容同样占用该额度；512 这类小值会被思考过程吃满导致正文为空，建议不低于 2048。"
+        ),
         json_schema_extra={"label": "最大输出 token"},
     )
     timeout_ms: int = Field(
-        default=15000,
+        default=20000,
         ge=1000,
         le=40000,
         description="单次视觉识别超时毫秒数，超时后降级为仅注入元信息。",

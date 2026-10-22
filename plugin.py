@@ -47,6 +47,12 @@ class ReadAnimationPlugin(MaiBotPlugin):
             "动图帧识别插件已加载（视觉任务: %s）",
             self.config.vlm.task_name or "auto",
         )
+        if int(self.config.vlm.max_tokens) < 2048:
+            self.ctx.logger.warning(
+                "动图帧识别: vlm.max_tokens 当前为 %s，若 vlm 任务是思考模型可能返回空描述；"
+                "已启用自动提高额度重试，建议把 max_tokens 调到 2048~4096",
+                self.config.vlm.max_tokens,
+            )
 
     async def on_unload(self) -> None:
         """插件卸载：保存缓存并释放处理器。"""

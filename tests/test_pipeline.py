@@ -12,7 +12,7 @@ from read_animation.config import ReadAnimationConfig
 from read_animation.pipeline import AnimationProcessor
 from read_animation.vlm import VlmDescriptionError
 
-from tests.fakes import FakeLlm
+from tests.fakes import EMPTY_RESPONSE_RESULT, FakeLlm
 from tests.image_fixtures import (
     make_animated_gif,
     make_broken_gif,
@@ -149,6 +149,40 @@ class AnimationProcessorTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(llm.calls), 1)
         finally:
             await second_processor.close()
+
+    async def test_empty_response_retries_with_more_tokens(self) -> None:
+        """思考模型吃满 max_tokens 时，应提高额度重试并拿到描述。"""
+
+        llm = FakeLlm(responses=[EMPTY_RESPONSE_RESULT])
+        processor = self._build_processor(llm)
+        await processor.initialize()
+        try:
+            message = make_message([make_image_component(make_animated_gif())])
+            result = await processor.process_message(message)
+            self.assertIsNotNone(result)
+            text = self._texts(result)[0]  # type: ignore[arg-type]
+            self.assertIn("画面：", text)
+            self.assertIn("跳起来", text)
+            self.assertEqual(len(llm.calls), 2)
+            self.assertGreater(llm.calls[1]["max_tokens"], llm.calls[0]["max_tokens"])
+        finally:
+            await processor.close()
+
+    async def test_empty_response_falls_back_when_retry_also_empty(self) -> None:
+        """两次都为空正文时降级为元信息，而不是编造内容。"""
+
+        llm = FakeLlm(responses=[EMPTY_RESPONSE_RESULT, EMPTY_RESPONSE_RESULT])
+        processor = self._build_processor(llm)
+        await processor.initialize()
+        try:
+            message = make_message([make_image_component(make_animated_gif())])
+            result = await processor.process_message(message)
+            self.assertIsNotNone(result)
+            text = self._texts(result)[0]  # type: ignore[arg-type]
+            self.assertIn("视觉描述不可用", text)
+            self.assertEqual(len(llm.calls), 2)
+        finally:
+            await processor.close()
 
     async def test_vlm_failure_falls_back_to_metadata(self) -> None:
         llm = FakeLlm(error=VlmDescriptionError("模拟失败"))
