@@ -25,6 +25,10 @@ MAX_FORWARD_DEPTH = 3
 MESSAGE_BUDGET_SECONDS = 40.0
 CACHE_FILE_NAME = "description_cache.json"
 CAVEAT_TEXT = "（基于等间隔采样帧生成，帧间细节可能有遗漏）"
+SKIP_REASON_TEXT = {
+    "too_many_frames": "帧数超出解析上限，未做视觉识别",
+    "too_long": "动图时长超出上限，未做视觉识别",
+}
 
 
 class NotAnimatedError(AnimationReadError):
@@ -354,10 +358,9 @@ class AnimationProcessor:
             return None
 
         header = self._build_header(analysis.meta)
-        if analysis.skip_reason == "too_many_frames":
-            return self._format_text(header, "", note="帧数超出解析上限，未做视觉识别")
-        if analysis.skip_reason == "too_long":
-            return self._format_text(header, "", note="动图时长超出上限，未做视觉识别")
+        if analysis.skip_reason:
+            skip_text = SKIP_REASON_TEXT.get(analysis.skip_reason, "未做视觉识别")
+            return self._format_text(header, "", note=skip_text)
 
         if not can_describe:
             reason = "已达每条消息识别上限" if budget["remaining"] <= 0 else "处理超时"

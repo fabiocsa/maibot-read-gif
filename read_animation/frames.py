@@ -13,6 +13,9 @@ AnimationKind = Literal["gif", "webp", "apng"]
 DEFAULT_FRAME_DURATION_MS = 100
 """动图帧缺少 duration 字段时使用的兜底时长。"""
 
+MAX_FRAME_PIXELS = 16_000_000
+"""单帧最大像素数；超过时拒绝解析，避免异常大图占用内存。"""
+
 
 class AnimationReadError(RuntimeError):
     """动图无法被 Pillow 读取或解码。"""
@@ -70,6 +73,11 @@ class AnimationReader:
             self._frame_count = int(getattr(self._image, "n_frames", 1) or 1)
         except Exception as exc:
             raise AnimationReadError(f"无法打开动图: {exc}") from exc
+
+        image_width = int(self._image.width)
+        image_height = int(self._image.height)
+        if image_width <= 0 or image_height <= 0 or image_width * image_height > MAX_FRAME_PIXELS:
+            raise AnimationReadError(f"动图分辨率异常或过大: {image_width}x{image_height}")
 
         self._durations: list[int] = []
         self._prefix_ms: list[int] = [0]
