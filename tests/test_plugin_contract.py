@@ -71,7 +71,8 @@ class PluginContractTests(unittest.TestCase):
         ):
             self.assertIn(key, manifest)
         self.assertEqual(manifest["manifest_version"], 2)
-        self.assertEqual(manifest["id"], "github.fabiocsa.read-animation")
+        self.assertEqual(manifest["id"], "github.fabiocsa.read-gif")
+        self.assertIn("GIF", manifest["name"])
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["plugin_type"], "media")
         self.assertEqual(manifest["changelog"], "CHANGELOG.md")
@@ -104,9 +105,9 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("vlm", default_config)
 
         schema = instance.build_config_schema(
-            plugin_id="github.fabiocsa.read-animation",
-            plugin_name="动图帧识别",
-            plugin_version="0.1.0",
+            plugin_id="github.fabiocsa.read-gif",
+            plugin_name="GIF 动图识别",
+            plugin_version="0.1.2",
         )
         self.assertIn("sections", schema)
         self.assertIn("plugin", schema["sections"])

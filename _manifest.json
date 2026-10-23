@@ -1,19 +1,19 @@
 {
   "manifest_version": 2,
-  "id": "github.fabiocsa.read-animation",
+  "id": "github.fabiocsa.read-gif",
   "version": "0.1.2",
-  "name": "动图帧识别（Read Animation）",
-  "description": "检测聊天里的 GIF/WebP/APNG，抽取多帧拼成带时间标注的帧板，调用宿主视觉模型生成动图描述并注入消息，让麦麦真正看懂动图。",
+  "name": "GIF 动图识别（Read GIF）",
+  "description": "检测聊天里的 GIF / 动态 WebP / APNG，抽取多帧拼成带时间标注的帧板，调用宿主视觉模型生成动图描述并注入消息，让麦麦真正看懂动图。",
   "author": {
     "name": "fabiocsa",
     "url": "https://github.com/fabiocsa"
   },
   "license": "MIT",
   "urls": {
-    "repository": "https://github.com/fabiocsa/maibot-read-animation",
-    "homepage": "https://github.com/fabiocsa/maibot-read-animation",
-    "documentation": "https://github.com/fabiocsa/maibot-read-animation/blob/main/README.md",
-    "issues": "https://github.com/fabiocsa/maibot-read-animation/issues"
+    "repository": "https://github.com/fabiocsa/maibot-read-gif",
+    "homepage": "https://github.com/fabiocsa/maibot-read-gif",
+    "documentation": "https://github.com/fabiocsa/maibot-read-gif/blob/main/README.md",
+    "issues": "https://github.com/fabiocsa/maibot-read-gif/issues"
   },
   "host_application": {
     "min_version": "1.3.5",

@@ -1,6 +1,6 @@
-"""动图帧识别插件入口。
+"""GIF 动图识别插件入口。
 
-拦截入站消息中的 GIF/WebP/APNG，抽取多帧拼成带时间标注的帧板，
+拦截入站消息中的 GIF / 动态 WebP / APNG，抽取多帧拼成带时间标注的帧板，
 调用宿主视觉模型生成描述，再以文本段形式注入消息，供聊天模型理解动图。
 """
 
@@ -21,8 +21,8 @@ from .read_animation.pipeline import CACHE_FILE_NAME, AnimationProcessor
 HOOK_TIMEOUT_MS = 45000
 
 
-class ReadAnimationPlugin(MaiBotPlugin):
-    """动图帧识别插件。"""
+class ReadGifPlugin(MaiBotPlugin):
+    """GIF 动图识别插件。"""
 
     config_model = ReadAnimationConfig
 
@@ -44,12 +44,12 @@ class ReadAnimationPlugin(MaiBotPlugin):
         )
         await self._processor.initialize()
         self.ctx.logger.info(
-            "动图帧识别插件已加载（视觉任务: %s）",
+            "GIF 动图识别插件已加载（视觉任务: %s）",
             self.config.vlm.task_name or "auto",
         )
         if int(self.config.vlm.max_tokens) < 2048:
             self.ctx.logger.warning(
-                "动图帧识别: vlm.max_tokens 当前为 %s，若 vlm 任务是思考模型可能返回空描述；"
+                "GIF 动图识别: vlm.max_tokens 当前为 %s，若 vlm 任务是思考模型可能返回空描述；"
                 "已启用自动提高额度重试，建议把 max_tokens 调到 2048~4096",
                 self.config.vlm.max_tokens,
             )
@@ -60,7 +60,7 @@ class ReadAnimationPlugin(MaiBotPlugin):
         if self._processor is not None:
             await self._processor.close()
             self._processor = None
-        self.ctx.logger.info("动图帧识别插件已卸载")
+        self.ctx.logger.info("GIF 动图识别插件已卸载")
 
     async def on_config_update(self, scope: str, config_data: dict[str, object], version: str) -> None:
         """插件配置热更新：重建缓存与并发控制。"""
@@ -69,7 +69,7 @@ class ReadAnimationPlugin(MaiBotPlugin):
         if scope != CONFIG_RELOAD_SCOPE_SELF or self._processor is None:
             return
         await self._processor.update_config(self.config)
-        self.ctx.logger.info("动图帧识别配置已更新")
+        self.ctx.logger.info("GIF 动图识别配置已更新")
 
     @HookHandler(
         "chat.receive.before_process",
@@ -95,7 +95,7 @@ class ReadAnimationPlugin(MaiBotPlugin):
         try:
             mutated_message = await processor.process_message(message)
         except Exception:
-            self.ctx.logger.warning("处理入站消息中的动图时出现异常", exc_info=True)
+            self.ctx.logger.warning("处理入站消息中的 GIF 动图时出现异常", exc_info=True)
             return None
 
         if mutated_message is None:
@@ -106,4 +106,4 @@ class ReadAnimationPlugin(MaiBotPlugin):
 def create_plugin() -> MaiBotPlugin:
     """插件工厂函数，供 Runner 调用。"""
 
-    return ReadAnimationPlugin()
+    return ReadGifPlugin()
