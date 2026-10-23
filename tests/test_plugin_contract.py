@@ -72,6 +72,11 @@ class PluginContractTests(unittest.TestCase):
             self.assertIn(key, manifest)
         self.assertEqual(manifest["manifest_version"], 2)
         self.assertEqual(manifest["id"], "github.fabiocsa.read-animation")
+        self.assertEqual(manifest["license"], "MIT")
+        self.assertEqual(manifest["plugin_type"], "media")
+        self.assertEqual(manifest["changelog"], "CHANGELOG.md")
+        self.assertTrue((PLUGIN_DIR / manifest["changelog"]).is_file())
+        self.assertTrue((PLUGIN_DIR / "LICENSE").is_file())
         self.assertIn("llm.generate", manifest["capabilities"])
         for version_key in ("host_application", "sdk"):
             for bound in ("min_version", "max_version"):

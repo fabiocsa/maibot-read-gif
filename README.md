@@ -19,11 +19,19 @@ MaiBot 的视觉链路在把图片交给模型前会把动图**压成首帧**，
 
 ## 安装
 
-1. 把本目录放进 MaiBot 的 `plugins/` 下（目录名 `maibot-read-animation`）；
+**方式一：插件市场（发布后可用）**
+
+MaiBot WebUI → 插件 → 插件市场，搜索「动图帧识别」并安装。
+
+**方式二：手动放入**
+
+1. 把本仓库放进 MaiBot 的 `plugins/` 下（目录名 `maibot-read-animation`）；
 2. 重启 MaiBot（或在 WebUI 插件管理中加载）；
 3. 首次加载会在插件目录生成 `config.toml`，按需修改。
 
 依赖 `Pillow`（MaiBot 主程序本身已依赖，无需额外安装）。
+
+> 运行前提：主程序 `model_config.toml` 的 `model_task_config.vlm` 已配置可用的视觉模型。
 
 ## 配置
 
